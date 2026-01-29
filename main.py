@@ -2,7 +2,8 @@ from LSSS import num_to_all_and_policy_str, gen_LSSS_from_policy_str, get_omega_
 from ring_lwe_symmetric import msg_to_matrix, encrypt_msg_matrix, ring_mul_xn1, ring_vec_mul_scalar, decrypt_msg_matrix, \
     msg_matrix_to_msg_str
 from ring_mul_ntt import ring_mul_xn1_ntt_numba, ring_vec_mul_scalar_ntt
-from samplePre import get_secure_param_only_n, gen_trapdoor_G_trapdoor, ring_samplePre, verify_preimage
+from samplePre import get_secure_param_only_n, gen_trapdoor_G_trapdoor, ring_samplePre, verify_preimage, \
+    get_secure_param_only_n_fast, get_secure_param_only_n_min
 import numpy as np
 import time
 
@@ -12,7 +13,7 @@ def rand_Zq(q: int) -> int:
     Sample a uniform random element from Z_q = {0,1,...,q-1}.
     Cryptographically secure.
     """
-    return secrets.randbelow(q)
+    return secrets.randbelow(q - 1) + 1
 
 def rand_matrix_Zq(n: int, m: int, q: int) -> np.ndarray:
     """
@@ -359,10 +360,14 @@ def revocation(
     return sk_1, sk_2, c_2
 
 if __name__ == '__main__':
-    n = 256
-    n, k, q, w, bar_m, m = get_secure_param_only_n(n)
+    # n = 256
+    n=256
+
+    n, k, q, w, bar_m, m = get_secure_param_only_n_min(n)
+
+    # n, k, q, w, bar_m, m = get_secure_param_only_n(n)
     # attr_num = 256
-    attr_num = 16
+    attr_num = 256
     eta = int(m/attr_num)
 
     policy_str = num_to_all_and_policy_str(attr_num)
@@ -406,9 +411,10 @@ if __name__ == '__main__':
     elapsed_ms = (end - start) * 1000
     print(f"encrypt耗时: {elapsed_ms:.3f} ms")
 
-    start = time.time()
+    # start = time.time()
     user_attr_list = leaf_node_name_list
     omega_vector = get_omega_from_attr_list_fast(leaf_node_name_list,leaf_node_v_list, user_attr_list,s_index)
+    start = time.time()
     msg_decrypt = decrypt(length, attr_num, c0, c_1, c_2, sk_1, sk_2, omega_vector, n, eta, c0_left, ua, VK0)
     end = time.time()
     elapsed_ms = (end - start) * 1000

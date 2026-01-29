@@ -3,7 +3,7 @@ import math
 from typing import Optional, Tuple
 
 import numpy as np
-from sympy import prevprime, isprime
+from sympy import prevprime, isprime, primerange
 
 def get_secure_param(n: int, k: int):
     q = int(prevprime(1 << k))   # prime close to 2^k
@@ -11,6 +11,34 @@ def get_secure_param(n: int, k: int):
     bar_m = 2 * n
     m = bar_m + w
     return n, k, q, w, bar_m, m
+
+def get_secure_param_only_n_min(n: int, *, min_bits: int | None = None, add_bits: int = 0):
+    """
+    If min_bits is None, use min_bits = log2(n) + add_bits (since n is power of two).
+    If you set add_bits=0, this is exactly your idea: min_bits = k_n.
+    """
+    # if n <= 0 or (n & (n - 1)) != 0:
+    #     raise ValueError("n must be a positive power of two.")
+
+    k_n = n.bit_length() - 1  # since n is power of two, this equals log2(n)
+
+    if min_bits is None:
+        min_bits = k_n + add_bits
+
+    modulus = 2 * n
+    start_q = 1 << min_bits
+
+    t = (start_q - 1 + modulus - 1) // modulus
+
+    while True:
+        q = t * modulus + 1
+        if isprime(q):
+            k = math.ceil(math.log2(q))
+            w = n * k
+            bar_m = 2 * n
+            m = bar_m + w
+            return n, k, q, w, bar_m, m
+        t += 1
 
 def get_secure_param_only_n(n: int, *, min_bits: int = 14):
     """
@@ -50,6 +78,44 @@ def get_secure_param_only_n(n: int, *, min_bits: int = 14):
             bar_m = 2 * n
             m = bar_m + w
             return n, k, q, w, bar_m, m
+        t += 1
+
+def get_secure_param_only_n_fast(n: int, *, min_bits: int = 14, sieve_primes_up_to: int = 2000):
+    if n <= 0 or (n & (n - 1)) != 0:
+        raise ValueError("n must be a positive power of two.")
+
+    modulus = 2 * n
+    start_q = 1 << min_bits
+
+    # smallest t s.t. q = t*(2n) + 1 >= start_q
+    t = (start_q - 1 + modulus - 1) // modulus
+
+    # Precompute small primes for sieving
+    small_primes = list(primerange(3, sieve_primes_up_to + 1))  # skip 2
+    # Build "bad residues" for each prime: t ≡ r (mod p) => q divisible by p
+    bad = []
+    for p in small_primes:
+        if modulus % p == 0:
+            continue  # inverse doesn't exist; also q= t*modulus+1 ≡ 1 (mod p), never divisible by p
+        inv = pow(modulus, -1, p)  # Python 3.8+: modular inverse
+        r = (-inv) % p
+        bad.append((p, r))
+
+    while True:
+        # fast sieve: skip t that makes q divisible by a small prime
+        skip = False
+        for p, r in bad:
+            if t % p == r:
+                skip = True
+                break
+        if not skip:
+            q = t * modulus + 1
+            if isprime(q):
+                k = math.ceil(math.log2(q))
+                w = n * k
+                bar_m = 2 * n
+                m = bar_m + w
+                return n, k, q, w, bar_m, m
         t += 1
 
 def gen_gadget_G(n: int, k: int, q: int) -> np.ndarray:
